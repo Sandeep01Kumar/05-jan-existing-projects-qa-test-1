@@ -1,0 +1,43 @@
+# Virtual environment folders
+venv/
+.venv/
+env/
+.env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution/packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE-specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (if used for secrets)
+.env
+
+# Pytest cache
+.pytest_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# mypy cache
+.mypy_cache/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# OS-specific
+.DS_Store
+Thumbs.db
