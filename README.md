@@ -236,7 +236,7 @@ flowchart TD
 
 ## Project Structure
 
-The repository has a **flat structure** with no subdirectories. All 12 files reside in the root directory:
+The repository has a **flat structure** with no subdirectories. All 18 files reside in the root directory:
 
 | File | Description |
 |------|-------------|
@@ -249,6 +249,12 @@ The repository has a **flat structure** with no subdirectories. All 12 files res
 | `LoginTest - Copy.java` | Duplicate of `LoginTest.java` — test fixture copy |
 | `industry.csv` | CSV data file with 43 industry category labels |
 | `industry - Copy.csv` | Duplicate of `industry.csv` — test fixture copy |
+| `100Pages.pdf` | PDF document — test fixture binary asset |
+| `100Pages - Copy.pdf` | Duplicate of `100Pages.pdf` — test fixture copy |
+| `demo.jpg` | JPEG image — test fixture binary asset |
+| `demo - Copy.jpg` | Duplicate of `demo.jpg` — test fixture copy |
+| `sample.doc` | Word document — test fixture binary asset |
+| `sample - Copy.doc` | Duplicate of `sample.doc` — test fixture copy |
 | `test.py.txt` | Empty placeholder file — test fixture artifact |
 | `test.py - Copy.txt` | Empty placeholder file — test fixture copy |
 | `test.txt.txt` | Empty placeholder file — test fixture artifact |
