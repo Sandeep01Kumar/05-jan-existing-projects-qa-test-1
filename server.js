@@ -1,14 +1,34 @@
-const http = require('http');
+// server.js — Express.js tutorial server
+// A minimal Node.js server demonstrating basic routing with Express.js
 
-const hostname = '127.0.0.1';
-const port = 3000;
+const express = require('express');
 
-const server = http.createServer((req, res) => {
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/plain');
-  res.end('Hello, World!\n');
+// ---------------------------------------------------------------------------
+// Server configuration
+// ---------------------------------------------------------------------------
+const HOSTNAME = '127.0.0.1'; // Bind to localhost only for security
+const PORT = 3000;            // Default listening port
+
+// Initialize the Express application
+const app = express();
+
+// ---------------------------------------------------------------------------
+// Route definitions
+// ---------------------------------------------------------------------------
+
+// GET / — Returns a Hello World greeting in plain text
+app.get('/', (req, res) => {
+  res.type('text/plain').send('Hello, World!\n');
 });
 
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
+// GET /evening — Returns a Good Evening greeting in plain text
+app.get('/evening', (req, res) => {
+  res.type('text/plain').send('Good evening');
+});
+
+// ---------------------------------------------------------------------------
+// Start the server
+// ---------------------------------------------------------------------------
+app.listen(PORT, HOSTNAME, () => {
+  console.log(`Server running at http://${HOSTNAME}:${PORT}/`);
 });
