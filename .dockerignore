@@ -1,11 +1,11 @@
 # ---------------------------------------------------------------------------
-# .dockerignore — Reverse Document Generator (Flask Application)
+# .dockerignore — archie-job-reverse-file-mapper (Flask Application)
 # ---------------------------------------------------------------------------
 # This file controls what is excluded from the Docker build context when the
 # Dockerfile executes `COPY . .` (see Dockerfile line ~225). The Flask
 # application image must contain ONLY runtime artifacts:
 #   * app/                    — Flask blueprints, services, utils (RUNTIME)
-#   * lib/reverse_document/   — LangGraph pipeline library (RUNTIME)
+#   * lib/reverse_mapper/     — LangGraph pipeline library (RUNTIME)
 #   * wsgi.py, run.py         — application entry points (RUNTIME)
 #   * find_trace_runs.py      — trace correlation utility (RUNTIME)
 #   * requirements.txt        — dependency manifest (BUILD)

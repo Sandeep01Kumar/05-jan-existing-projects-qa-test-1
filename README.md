@@ -371,7 +371,7 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "3600"
 The `--timeout 3600` (one hour) accommodates the long-running document
 generation pipeline and matches the Cloud Run Service request timeout. The
 single image preserves the multi-runtime stack required by the original
-container — Python 3.12.3 for the application, Node.js 20 LTS for the
+container — Python 3.12.3 for the application, Node.js 22 LTS for the
 Chrome DevTools and Figma MCP tool servers spawned via `npx`, and Google
 Chrome for headless browser automation.
 

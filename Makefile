@@ -62,7 +62,7 @@ run-dev:
 # WSGI compatibility, async view dispatch, and long-running pipeline
 # behavior in a production-like configuration before deploying.
 run-prod:
-	gunicorn --bind 0.0.0.0:$(PORT) --workers 2 --timeout 3600 wsgi:app
+	gunicorn --bind 0.0.0.0:$(PORT) --workers 2 --threads 4 --timeout 3600 --graceful-timeout 60 --keep-alive 5 --access-logfile - --error-logfile - --log-level info wsgi:app
 
 # Run the full pytest suite under tests/ with verbose output. Tests
 # cover route handlers (generate, update, health, traces) and the

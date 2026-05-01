@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.6
 # ---------------------------------------------------------------------------
-# Reverse Document Generator — Flask Application Container Image
+# archie-job-reverse-file-mapper — Flask Application Container Image
 # ---------------------------------------------------------------------------
-# This Dockerfile builds the runtime image for the Reverse Document Generator
-# Flask application (archie-job-reverse-document-generator) deployed as a
+# This Dockerfile builds the runtime image for the Reverse File Mapper
+# Flask application (archie-job-reverse-file-mapper) deployed as a
 # Cloud Run **Service** (long-lived HTTP server) — replacing the previous
 # Cloud Run **Job** (one-shot batch process) deployment model.
 #
@@ -218,7 +218,7 @@ RUN --mount=type=secret,id=google_credentials,target=/tmp/google_credentials.jso
     python -m pip install --break-system-packages --no-cache-dir -r requirements.txt
 
 # ---------------------------------------------------------------------------
-# Copy the rest of the application source tree (Flask app/, lib/reverse_document/,
+# Copy the rest of the application source tree (Flask app/, lib/reverse_mapper/,
 # wsgi.py, run.py, find_trace_runs.py, etc.). The .dockerignore file controls
 # what is excluded from this copy.
 # ---------------------------------------------------------------------------

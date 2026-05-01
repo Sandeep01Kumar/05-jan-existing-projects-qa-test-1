@@ -1,4 +1,4 @@
-# Reverse Document Generator - Flask Application
+# archie-job-reverse-file-mapper - Flask Application
 # Authentication: GOOGLE_APPLICATION_CREDENTIALS must be set; keyrings.google-artifactregistry-auth provides auth.
 --extra-index-url https://us-east1-python.pkg.dev/blitzy-platform-stage/python-us-east1/simple/
 
