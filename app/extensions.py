@@ -33,10 +33,25 @@ In the Flask migration the singletons are deferred to
 3. Different Flask app instances (e.g. test fixtures vs. production)
    can use different mock clients.
 
+:func:`init_extensions` is **idempotent**.  Calling it multiple times
+on the same :class:`flask.Flask` instance is a safe no-op for the
+GCP client singletons: the first call constructs the clients and
+stores them on ``app.extensions``, subsequent calls preserve those
+existing instances.  This guarantees that any future double-boot
+code path or test fixture that creates and re-initializes Flask
+applications will not leak GCP client objects nor race on storage
+keys.
+
 The CORS extension instance is created at module level using
 Flask-CORS's standard deferred-initialization pattern; the actual
 binding to the Flask app happens inside :func:`init_extensions` via
-``cors.init_app(app)``.
+``cors.init_app(app, origins=app.config.get("CORS_ORIGINS", []))``.
+The ``origins`` argument is sourced from the application's config
+(see :attr:`app.config.Config.CORS_ORIGINS`); the default is an
+empty list, which is fail-closed against CWE-942 (Permissive
+Cross-domain Policy with Untrusted Domains).  Operators populate
+the allow-list via the ``CORS_ORIGINS`` environment variable (or
+by overriding the attribute in a Config subclass).
 
 Usage from the application factory (``app/__init__.py``)::
 
@@ -113,7 +128,10 @@ def init_extensions(app: Flask) -> None:
     setup.  This function:
 
     1. Initializes ``flask-cors`` so the API endpoints accept
-       cross-origin requests from the Blitzy platform UI.
+       cross-origin requests from operator-allowed origins (and
+       only those origins).  The allow-list is read from
+       ``app.config["CORS_ORIGINS"]`` (defaults to ``[]``,
+       fail-closed against CWE-942).
     2. Constructs a thread-safe ``google.cloud.storage.Client`` and
        binds it to ``app.extensions["storage_client"]``.
     3. Constructs a thread-safe
@@ -134,6 +152,28 @@ def init_extensions(app: Flask) -> None:
     reused across requests, so a single instance per Flask process
     (i.e. per Gunicorn worker) is the correct pattern.
 
+    **Idempotency contract.**  This function is idempotent: calling
+    it multiple times on the same ``app`` is a safe no-op for the
+    GCP client singletons.  The first call constructs the clients
+    and stores them on ``app.extensions``; subsequent calls detect
+    the pre-existing keys and skip re-construction.  This guards
+    against:
+
+    * Double-registration during boot (e.g., if a future code path
+      calls ``init_extensions`` twice).
+    * Test fixtures that re-initialize the same Flask app.
+    * Concurrent boot paths in multi-threaded environments.
+
+    Without these guards, every invocation would replace the
+    pre-existing client objects on ``app.extensions``, leaking
+    resources held by the previous instances and creating subtle
+    race conditions.
+
+    .. note::
+        Flask-CORS' ``cors.init_app(app, ...)`` is itself safe to
+        invoke multiple times on the same app; subsequent calls
+        simply re-apply the CORS rules.
+
     Args:
         app: The Flask application instance returned by
             :func:`flask.Flask` inside :func:`app.create_app`.
@@ -141,33 +181,65 @@ def init_extensions(app: Flask) -> None:
     Returns:
         ``None``.  Side effects:
             * ``app.extensions["storage_client"]`` is set to a
-              ``google.cloud.storage.Client``.
+              ``google.cloud.storage.Client`` on the FIRST call only.
             * ``app.extensions["pubsub_publisher"]`` is set to a
-              ``google.cloud.pubsub_v1.PublisherClient``.
-            * Flask-CORS is bound to ``app``.
+              ``google.cloud.pubsub_v1.PublisherClient`` on the
+              FIRST call only.
+            * Flask-CORS is (re-)bound to ``app`` with the explicit
+              allow-list from ``app.config["CORS_ORIGINS"]``.
     """
-    # 1. CORS -- allow cross-origin requests.  The default
-    #    configuration permits any origin; tighten via
-    #    ``app.config["CORS_ORIGINS"]`` if the deployment requires
-    #    more restrictive headers.
-    cors.init_app(app)
-    app.logger.info("Initialized flask-cors extension.")
+    # 1. CORS -- allow cross-origin requests from explicitly-listed
+    #    origins only.  The allow-list is sourced from
+    #    ``app.config["CORS_ORIGINS"]`` (populated by Config
+    #    subclasses; see :attr:`app.config.Config.CORS_ORIGINS`).
+    #    The default is ``[]`` (fail-closed): no origin is reflected
+    #    into ``Access-Control-Allow-Origin`` unless an operator has
+    #    explicitly opted in by setting the ``CORS_ORIGINS``
+    #    environment variable or by selecting :class:`DevelopmentConfig`
+    #    (which overrides to ``["*"]`` for local development).  This
+    #    closes the CWE-942 hole that would otherwise reflect any
+    #    request ``Origin`` header back to the caller.
+    cors_origins = app.config.get("CORS_ORIGINS", [])
+    cors.init_app(app, origins=cors_origins)
+    app.logger.info(
+        "Initialized flask-cors extension with %d allow-listed origin(s).",
+        len(cors_origins),
+    )
 
     # 2. GCP Cloud Storage client (replaces ``storage_client`` from
     #    main.py line 64).  This client is thread-safe and meant to
     #    be reused across requests; one instance per worker is the
-    #    correct pattern.
-    storage_client = storage.Client()
-    app.extensions[_STORAGE_CLIENT_KEY] = storage_client
-    app.logger.info("Initialized google-cloud-storage client.")
+    #    correct pattern.  The existence guard (``not in
+    #    app.extensions``) makes :func:`init_extensions` idempotent:
+    #    re-invocation does not replace an already-initialized
+    #    client, preserving the resources held by the existing
+    #    instance and avoiding race conditions on concurrent boot
+    #    paths.
+    if _STORAGE_CLIENT_KEY not in app.extensions:
+        app.extensions[_STORAGE_CLIENT_KEY] = storage.Client()
+        app.logger.info("Initialized google-cloud-storage client.")
+    else:
+        app.logger.debug(
+            "Skipping google-cloud-storage initialization: client "
+            "already present on app.extensions[%r].",
+            _STORAGE_CLIENT_KEY,
+        )
 
     # 3. GCP PubSub publisher client (replaces ``publisher`` from
     #    main.py line 65).  This client is thread-safe and is shared
     #    across all PubSub publication paths -- Notifier IN_PROGRESS
     #    / DONE / ERROR notifications and downstream-job propagation.
-    publisher = pubsub_v1.PublisherClient()
-    app.extensions[_PUBSUB_PUBLISHER_KEY] = publisher
-    app.logger.info("Initialized google-cloud-pubsub publisher client.")
+    #    The existence guard mirrors the storage_client pattern above
+    #    to keep :func:`init_extensions` idempotent.
+    if _PUBSUB_PUBLISHER_KEY not in app.extensions:
+        app.extensions[_PUBSUB_PUBLISHER_KEY] = pubsub_v1.PublisherClient()
+        app.logger.info("Initialized google-cloud-pubsub publisher client.")
+    else:
+        app.logger.debug(
+            "Skipping google-cloud-pubsub initialization: publisher "
+            "already present on app.extensions[%r].",
+            _PUBSUB_PUBLISHER_KEY,
+        )
 
 
 def get_storage_client(app: Flask) -> storage.Client:

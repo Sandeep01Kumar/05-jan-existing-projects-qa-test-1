@@ -13,6 +13,14 @@ without defaults) will raise ``RuntimeError`` from
 :func:`Config.validate` if missing at startup; optional variables
 fall back to sensible defaults.
 
+Beyond the variables consumed by the original ``main.py``, the
+:class:`Config` class also exposes a :attr:`Config.CORS_ORIGINS`
+attribute that is consumed by :func:`app.extensions.init_extensions`
+to harden the Flask-CORS extension against CWE-942 (Permissive
+Cross-domain Policy with Untrusted Domains) by populating an explicit
+allow-list rather than relying on the permissive default of
+reflecting any origin.
+
 Usage:
     >>> from app.config import get_config
     >>> ConfigClass = get_config("production")
@@ -33,7 +41,36 @@ application factory initialization.
 """
 
 import os
-from typing import Optional, Type
+from typing import List, Optional, Type
+
+
+def _parse_cors_origins(raw: str) -> List[str]:
+    """Parse a comma-separated CORS allow-list from an env-var string.
+
+    Splits ``raw`` on commas, strips whitespace from each entry, and
+    drops empty entries.  Returns an empty list when ``raw`` is empty
+    or contains only whitespace and commas, which is the safe
+    fail-closed default for production-class deployments (see
+    :class:`Config.CORS_ORIGINS`).
+
+    Args:
+        raw: The raw value of the ``CORS_ORIGINS`` environment
+            variable (or any equivalent comma-separated string).
+
+    Returns:
+        The parsed list of origin URLs.  May be empty.
+
+    Examples:
+        >>> _parse_cors_origins("")
+        []
+        >>> _parse_cors_origins("https://app.blitzy.com")
+        ['https://app.blitzy.com']
+        >>> _parse_cors_origins("https://a.example.com, https://b.example.com")
+        ['https://a.example.com', 'https://b.example.com']
+        >>> _parse_cors_origins("*")
+        ['*']
+    """
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 class Config:
@@ -64,6 +101,36 @@ class Config:
     DEBUG: bool = False
     TESTING: bool = False
     JSON_SORT_KEYS: bool = False  # Preserve JSON field ordering in responses
+
+    # ------------------------------------------------------------------
+    # CORS allow-list (security hardening — see ``app/extensions.py``)
+    # ------------------------------------------------------------------
+    # ``CORS_ORIGINS`` is a list of origin URLs that the API will
+    # accept cross-origin requests from.  It is consumed by
+    # :func:`app.extensions.init_extensions`, which forwards the value
+    # to ``flask_cors.CORS.init_app(app, origins=...)``.
+    #
+    # The default is an EMPTY LIST (``[]``), which is fail-closed: no
+    # browser cross-origin reflection occurs unless an operator
+    # explicitly opts in by either (a) setting the ``CORS_ORIGINS``
+    # environment variable to a comma-separated allow-list, or
+    # (b) overriding ``CORS_ORIGINS`` in a subclass (see
+    # :class:`DevelopmentConfig` which uses ``["*"]`` for local dev).
+    #
+    # This protects against CWE-942 (Permissive Cross-domain Policy
+    # with Untrusted Domains).  Without this attribute,
+    # ``flask-cors`` reflects any value of the request ``Origin``
+    # header into ``Access-Control-Allow-Origin`` -- an unsafe
+    # default for a Cloud Run Service exposed on the public internet.
+    #
+    # Typical production values come from the env-config YAML files,
+    # for example::
+    #
+    #     CORS_ORIGINS=https://app.blitzy.com,https://staging.blitzy.com
+    #
+    # which is parsed by :func:`_parse_cors_origins` into
+    # ``["https://app.blitzy.com", "https://staging.blitzy.com"]``.
+    CORS_ORIGINS: List[str] = _parse_cors_origins(os.environ.get("CORS_ORIGINS", ""))
 
     # ------------------------------------------------------------------
     # Project / GCP identifiers (REQUIRED)
@@ -207,12 +274,32 @@ class DevelopmentConfig(Config):
     ENV: str = "development"
     DEBUG: bool = True
 
+    # ------------------------------------------------------------------
+    # CORS allow-list — permissive for local development convenience.
+    # ------------------------------------------------------------------
+    # In local development we accept any origin so a developer can
+    # easily exercise the API from a localhost UI on any port (e.g.,
+    # ``http://localhost:3000``, ``http://localhost:5173``).  An
+    # explicit ``CORS_ORIGINS`` env-var value still wins over this
+    # default because the base class reads it at import time and
+    # subclass body assignment runs later in the MRO.  To force the
+    # operator-provided env value through, an explicit override is
+    # used: if ``CORS_ORIGINS`` env var is set, parse it; otherwise
+    # default to ``["*"]``.
+    CORS_ORIGINS: List[str] = _parse_cors_origins(os.environ.get("CORS_ORIGINS", "*"))
+
 
 class StagingConfig(Config):
     """Staging configuration.
 
     Used for the ``stage`` deployment environment per the
     GitHub Actions workflow.  No debug mode; production-like settings.
+
+    ``CORS_ORIGINS`` inherits the fail-closed default of ``[]`` from
+    :class:`Config`.  Operators MUST set ``CORS_ORIGINS`` in
+    ``env_config/env-stage.yaml`` to an explicit allow-list of
+    origins (e.g., ``https://staging.blitzy.com``) for browser
+    cross-origin requests to be accepted.
     """
 
     ENV: str = "staging"
@@ -224,6 +311,12 @@ class QAConfig(Config):
 
     The ``qa`` GitHub Actions branch deploys to this environment
     (per ``Makefile`` ``ENV ?= qa`` and the ``qa`` workflow trigger).
+
+    ``CORS_ORIGINS`` inherits the fail-closed default of ``[]`` from
+    :class:`Config`.  Operators MUST set ``CORS_ORIGINS`` in
+    ``env_config/env-qa.yaml`` to an explicit allow-list of origins
+    (e.g., ``https://qa.blitzy.com``) for browser cross-origin
+    requests to be accepted.
     """
 
     ENV: str = "qa"
@@ -236,6 +329,14 @@ class ProductionConfig(Config):
     Strict configuration for the production Cloud Run Service.
     DEBUG is forced off and all required variables must be present
     (call :meth:`Config.validate` at application startup).
+
+    ``CORS_ORIGINS`` inherits the fail-closed default of ``[]`` from
+    :class:`Config`.  Operators MUST set ``CORS_ORIGINS`` in
+    ``env_config/env-prod.yaml`` to an explicit allow-list of
+    origins (e.g., ``https://app.blitzy.com``) for browser
+    cross-origin requests to be accepted.  The default of ``[]``
+    denies all browser cross-origin requests so misconfiguration
+    fails closed (CWE-942 mitigation).
     """
 
     ENV: str = "production"
@@ -258,6 +359,19 @@ class TestingConfig(Config):
     ENV: str = "testing"
     DEBUG: bool = True
     TESTING: bool = True
+
+    # ------------------------------------------------------------------
+    # CORS allow-list — empty to verify request handling without
+    # CORS reflection.
+    # ------------------------------------------------------------------
+    # Tests use an empty allow-list so they can verify that the API
+    # behaves correctly regardless of CORS reflection (no
+    # ``Access-Control-Allow-Origin`` header is added to responses
+    # unless an explicit allow-list is provided).  Tests that
+    # specifically need to verify CORS-allowed-origin behavior should
+    # construct their own Flask app via :func:`app.create_app` with
+    # an explicit ``CORS_ORIGINS`` override.
+    CORS_ORIGINS: List[str] = []
 
     # ------------------------------------------------------------------
     # Safe placeholders so service code that reads config in tests

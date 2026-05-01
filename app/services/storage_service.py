@@ -79,8 +79,8 @@ from typing import Any, Dict
 # Third-party imports
 # ---------------------------------------------------------------------------
 # ``AdminStorageService`` is the primary GCS-backed document persistence
-# class shipped by ``blitzy-platform-shared`` (pinned at 0.0.720 in
-# requirements.txt).  It exposes ``download_tech_spec``,
+# class shipped by ``blitzy-platform-shared`` (see ``requirements.txt`` for
+# the pinned version).  It exposes ``download_tech_spec``,
 # ``upload_repo_mapping``, ``upload_short_repo_structure``, and
 # ``upload_file_schemas`` methods that this module delegates to.  The
 # constructor signature is::

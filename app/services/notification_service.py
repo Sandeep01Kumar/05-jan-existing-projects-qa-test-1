@@ -118,22 +118,24 @@ from typing import Any, Dict
 # the convention in :mod:`app.extensions`.
 #
 # * ``Notifier`` -- the canonical PubSub notification publisher shipped by
-#   ``blitzy-platform-shared`` (private package, GCP Artifact Registry,
-#   pinned at 0.0.720 per the AAP).  It is constructed with a
-#   :class:`NotificationData` value object (request-specific identifiers
-#   such as ``project_id`` and ``tech_spec_id``) and a :class:`BaseMetadata`
-#   value object (cross-cutting flags such as ``propagate``).  All three
-#   classes ride together as the source-of-truth for the PubSub message
-#   schema, so they are imported as a single statement.
+#   ``blitzy-platform-shared`` (private package, GCP Artifact Registry;
+#   see ``requirements.txt`` for the pinned version).  It is constructed
+#   with a :class:`NotificationData` value object (request-specific
+#   identifiers such as ``project_id`` and ``tech_spec_id``) and a
+#   :class:`BaseMetadata` value object (cross-cutting flags such as
+#   ``propagate``).  All three classes ride together as the source-of-truth
+#   for the PubSub message schema, so they are imported as a single
+#   statement.
 # * ``ProjectPhase`` -- the canonical enum identifying which Blitzy pipeline
 #   phase emitted a notification.  ``ProjectPhase.FILE_MAPPING`` is the
 #   value used by the original ``main.py`` (line 278) and MUST be preserved
 #   verbatim per AAP Section 0.7.1 ("Preserve all PubSub notification
 #   schemas") so that downstream PubSub consumers can route events
 #   correctly.  ``blitzy-utils`` is a private internal package served from
-#   the GCP Artifact Registry (pinned at 0.0.542 per the AAP; the setup
-#   log records 0.0.582 installed -- both versions expose the same
-#   ``ProjectPhase.FILE_MAPPING`` enum member).
+#   the GCP Artifact Registry, transitively pulled by
+#   ``blitzy-platform-shared`` (see ``requirements.txt`` for the pinned
+#   version of ``blitzy-platform-shared``; ``blitzy-utils`` rides the
+#   compatible patch series exposed by that pin).
 # * ``google.cloud.pubsub_v1`` -- imported solely for the
 #   ``pubsub_v1.PublisherClient`` type annotation on the ``publisher``
 #   parameter of :func:`build_notifier`.  The actual client instance is
@@ -141,9 +143,8 @@ from typing import Any, Dict
 #   :func:`app.extensions.init_extensions` (where it replaces the
 #   module-level singleton from the original ``main.py`` line 65) and is
 #   passed in by the caller -- this module does not construct or hold any
-#   GCP client of its own.  ``google-cloud-pubsub`` is pinned at 2.36.0 in
-#   ``requirements.txt`` (the installed version is 2.37.0 per the setup
-#   log; both are API-compatible for the ``pubsub_v1`` namespace).
+#   GCP client of its own.  See ``requirements.txt`` for the pinned
+#   version of ``google-cloud-pubsub``.
 from blitzy_platform_shared.notifier import (
     BaseMetadata,
     NotificationData,
@@ -258,8 +259,20 @@ def build_notifier(
     # ``propagate`` defaults to ``True`` (matching ``main.py`` line
     # 251) so that downstream-job propagation is enabled by default.
     # ``repo_name`` defaults to ``None`` (matching ``main.py`` line
-    # 252) -- the underlying ``BaseMetadata`` accepts ``str | None``
-    # so passing ``None`` for an absent field is safe.
+    # 252).  Although ``BaseMetadata.repo_name`` is annotated as
+    # ``str`` (not ``str | None``), the upstream
+    # ``blitzy_platform_shared.notifier.BaseMetadata`` is a plain
+    # dataclass (no runtime type validation), and its ``to_dict()``
+    # method filters out ``None`` values before serialization.  This
+    # means an absent ``repo_name`` is silently dropped from the
+    # outbound PubSub payload -- which is exactly the behavior the
+    # original ``main.py`` relied on.  Passing ``None`` here therefore
+    # preserves the original behavior verbatim per the AAP rule
+    # "Preserve all PubSub notification schemas".  The technical
+    # annotation mismatch is intentional: changing this to
+    # ``payload.get("repo_name", "")`` would inject an empty string
+    # into the outbound payload (a behavioral divergence) rather than
+    # omitting the field as the original code does.
     base_metadata = BaseMetadata(
         propagate=payload.get("propagate", True),
         repo_name=payload.get("repo_name"),
