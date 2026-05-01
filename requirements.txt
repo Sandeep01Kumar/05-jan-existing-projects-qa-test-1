@@ -3,23 +3,33 @@
 --extra-index-url https://us-east1-python.pkg.dev/blitzy-platform-stage/python-us-east1/simple/
 
 # ---------------------------------------------------------------------------
-# Internal Blitzy packages (GCP Artifact Registry)
-# blitzy-platform-shared transitively pins langgraph, langchain-*, anthropic,
-# openai, google-genai, voyageai, neo4j, mcp, google-cloud-*, etc.
+# Internal Blitzy platform packages (GCP Artifact Registry)
+# blitzy-platform-shared transitively pulls in blitzy-utils, langgraph,
+# langchain-core, langchain-anthropic, langchain-openai, langchain-google-genai,
+# pydantic, anthropic, openai, google-genai, voyageai, google-cloud-pubsub,
+# google-cloud-storage, google-cloud-secret-manager, neo4j, langsmith, mcp,
+# httpx, aiohttp, tiktoken, tenacity, etc.
 # ---------------------------------------------------------------------------
-blitzy-platform-shared==0.0.720
+blitzy-platform-shared==0.0.781
 
 # ---------------------------------------------------------------------------
-# Flask web stack (new for the HTTP refactor)
+# Flask web framework (new for the HTTP refactor)
+# Flask 3.x supports `async def` view functions natively, enabling direct
+# integration with the existing asyncio-based LangGraph pipeline (app.astream
+# / asyncio.run). Gunicorn is the production WSGI server for Cloud Run
+# Service deployment; flask-cors enables CORS for cross-origin API calls
+# from the Blitzy platform UI.
 # ---------------------------------------------------------------------------
-flask==3.1.3
+Flask[async]==3.1.3
 gunicorn==25.3.0
 flask-cors==6.0.2
 
 # ---------------------------------------------------------------------------
 # Testing dependencies
+# pytest-flask provides the `client` and `app` fixtures for Flask testing;
+# pytest-asyncio enables async test functions for the LangGraph pipeline.
 # ---------------------------------------------------------------------------
-pytest>=8.0.0
+pytest==8.3.5
 pytest-flask==1.3.0
-pytest-asyncio>=0.24.0
-pytest-cov>=6.0.0
+pytest-asyncio==1.3.0
+pytest-cov==6.1.1
