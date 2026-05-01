@@ -1,0 +1,25 @@
+# Reverse Document Generator - Flask Application
+# Authentication: GOOGLE_APPLICATION_CREDENTIALS must be set; keyrings.google-artifactregistry-auth provides auth.
+--extra-index-url https://us-east1-python.pkg.dev/blitzy-platform-stage/python-us-east1/simple/
+
+# ---------------------------------------------------------------------------
+# Internal Blitzy packages (GCP Artifact Registry)
+# blitzy-platform-shared transitively pins langgraph, langchain-*, anthropic,
+# openai, google-genai, voyageai, neo4j, mcp, google-cloud-*, etc.
+# ---------------------------------------------------------------------------
+blitzy-platform-shared==0.0.720
+
+# ---------------------------------------------------------------------------
+# Flask web stack (new for the HTTP refactor)
+# ---------------------------------------------------------------------------
+flask==3.1.3
+gunicorn==25.3.0
+flask-cors==6.0.2
+
+# ---------------------------------------------------------------------------
+# Testing dependencies
+# ---------------------------------------------------------------------------
+pytest>=8.0.0
+pytest-flask==1.3.0
+pytest-asyncio>=0.24.0
+pytest-cov>=6.0.0
