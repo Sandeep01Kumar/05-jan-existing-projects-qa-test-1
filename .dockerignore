@@ -1,0 +1,79 @@
+# ---------------------------------------------------------------------------
+# .dockerignore — Reverse Document Generator (Flask Application)
+# ---------------------------------------------------------------------------
+# This file controls what is excluded from the Docker build context when the
+# Dockerfile executes `COPY . .` (see Dockerfile line ~225). The Flask
+# application image must contain ONLY runtime artifacts:
+#   * app/                    — Flask blueprints, services, utils (RUNTIME)
+#   * lib/reverse_document/   — LangGraph pipeline library (RUNTIME)
+#   * wsgi.py, run.py         — application entry points (RUNTIME)
+#   * find_trace_runs.py      — trace correlation utility (RUNTIME)
+#   * requirements.txt        — dependency manifest (BUILD)
+#   * Dockerfile, Makefile    — build/deploy automation (build-time only;
+#                               harmless if copied into the image)
+#
+# The patterns below exclude version-control metadata, local secrets,
+# Python build/cache artifacts, virtual environments, test suites, IDE
+# configuration, OS metadata, log files, and developer credential files —
+# all of which would otherwise inflate the image and risk leaking
+# secrets or development-only behavior into production.
+#
+# CRITICAL: Do NOT add patterns that match `app/`, `lib/`, `wsgi.py`,
+# `run.py`, `requirements.txt`, or `find_trace_runs.py` — those paths
+# contain runtime code required by the Gunicorn-served Flask service.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Version control metadata and local environment overrides
+# ---------------------------------------------------------------------------
+.git
+.gitignore
+.env
+
+# ---------------------------------------------------------------------------
+# Python bytecode and compiled artifacts
+# ---------------------------------------------------------------------------
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ---------------------------------------------------------------------------
+# Python virtual environments (developer-local; never shipped in image)
+# ---------------------------------------------------------------------------
+env/
+venv/
+.venv/
+
+# ---------------------------------------------------------------------------
+# Test artifacts and CI-only directories — tests run in CI, not in the
+# deployed Cloud Run Service. Excluding these keeps the production image
+# small and prevents accidental execution of test code in production.
+# ---------------------------------------------------------------------------
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.mypy_cache/
+.tox/
+*.log
+
+# ---------------------------------------------------------------------------
+# IDE / Editor configuration files (developer-local only)
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# Local development service-account keys and CI credential files —
+# these MUST NEVER be baked into a container image. Credentials are
+# injected at runtime via Cloud Run service-account bindings or, at
+# build time, via BuildKit's `--mount=type=secret` flag (see Dockerfile
+# line ~216 where GOOGLE_APPLICATION_CREDENTIALS is mounted, not COPY'd).
+# ---------------------------------------------------------------------------
+service-key-*.json
+gha-creds-*.json
