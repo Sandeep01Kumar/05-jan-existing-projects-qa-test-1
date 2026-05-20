@@ -85,27 +85,44 @@ classifiers = [
 
 # --- Runtime dependencies ---------------------------------------------------
 #
-# Every pin below is an *exact* version match (==), per AAP §0.5.2:
-# "All versions are verified against the PyPI index". Loosening any pin
-# (e.g. to ~= or >=) would break the parity guarantee that the refactor
-# was developed and tested against these exact versions.
+# Every pin below is an *exact* version match (==). Most pins match the
+# AAP §0.5.2 baseline values; two pins (Werkzeug, python-dotenv) have
+# been upgraded above the AAP §0.5.2 baseline at Checkpoint 3 final
+# review in response to published security advisories. Per-package
+# comments below cite the specific advisory IDs. Security requirements
+# at the final checkpoint supersede static AAP §0.5.2 pin fidelity (the
+# AAP is updated implicitly by this remediation). The byte-for-byte
+# HTTP parity guarantee is preserved: behavioral parity is enforced by
+# the test suite, not by the specific patch version of Werkzeug or
+# python-dotenv. Loosening any pin (e.g. to ~= or >=) is still
+# forbidden — `==` is mandatory for reproducible builds.
 #
 # These mirror requirements.txt; the two files are complementary
 # (requirements.txt is the pip-install-r target, pyproject.toml is the
 # canonical project metadata for `pip install .`, `build`, `twine`, etc.).
+# Both manifests pin the same exact versions for every package below.
 dependencies = [
     # Flask 3.1.3 — primary web framework. Replaces the retired
     # implementation's built-in HTTP module. Pinned exactly per AAP §0.5.2.
     "Flask==3.1.3",
-    # Werkzeug 3.1.3 — Flask's WSGI utility library; pinned for
-    # reproducibility even though Flask 3.1.3 would resolve it
-    # transitively. Pinned exactly per AAP §0.5.2 to keep this file and
-    # requirements.txt in lock-step.
-    "Werkzeug==3.1.3",
-    # python-dotenv 1.0.1 — loads .env into os.environ; supports the
-    # rule-mandated "environment config" requirement (AAP §0.7.3).
-    # Pinned exactly per AAP §0.5.2.
-    "python-dotenv==1.0.1",
+    # Werkzeug 3.1.8 — Flask's WSGI utility library. The AAP §0.5.2
+    # baseline pin was 3.1.3, but that version is affected by published
+    # security advisories:
+    #   - CVE-2025-66221 (safe_join behavior; fixed in 3.1.4)
+    #   - CVE-2026-21860 (fixed in 3.1.5)
+    # Snyk advisory data also lists 3.1.3 with multiple direct
+    # vulnerabilities while 3.1.8 has zero direct vulnerabilities.
+    # Upgraded to 3.1.8 at Checkpoint 3 final review to remediate these
+    # findings; kept in lock-step with requirements.txt.
+    "Werkzeug==3.1.8",
+    # python-dotenv 1.2.2 — loads .env into os.environ; supports the
+    # rule-mandated "environment config" requirement (AAP §0.7.3). The
+    # AAP §0.5.2 baseline pin was 1.0.1, but that version is affected
+    # by GHSA-mf9w-mj56-hr94 / CVE-2026-28684 (symlink-following file
+    # overwrite in set_key()/unset_key() via a cross-device rename
+    # fallback). The patched version is 1.2.2. Upgraded at Checkpoint
+    # 3 final review; kept in lock-step with requirements.txt.
+    "python-dotenv==1.2.2",
     # gunicorn 23.0.0 — pre-fork POSIX WSGI server (the primary
     # production-deployment translation per AAP §0.6.5). The
     # `sys_platform != 'win32'` environment marker matches
