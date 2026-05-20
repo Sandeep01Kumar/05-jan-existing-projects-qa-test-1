@@ -285,14 +285,15 @@ def create_app(config_object: str = _DEFAULT_CONFIG_OBJECT) -> Flask:
     # ------------------------------------------------------------------
     # Step 1: Instantiate the Flask application.
     # ------------------------------------------------------------------
-    # ``Flask(__name__)`` is the canonical idiom recommended by the
-    # official Flask documentation: the import-name argument lets the
-    # framework resolve resources (templates, static files, instance
-    # folder) relative to this package. The hao-backprop-test service
-    # uses none of those features (AAP §0.3.4 — no UI surface), but
-    # passing ``__name__`` keeps the signature aligned with community
-    # conventions and with documentation examples that future
-    # maintainers will look up.
+    # ``Flask(__name__, static_folder=None)`` is the canonical idiom
+    # recommended by the official Flask documentation, augmented with the
+    # ``static_folder=None`` kwarg to disable Flask's implicit static
+    # endpoint. The import-name argument lets the framework resolve
+    # resources (templates, instance folder) relative to this package.
+    # The hao-backprop-test service uses none of those features (AAP
+    # §0.3.4 — no UI surface, no static assets), but passing ``__name__``
+    # keeps the signature aligned with community conventions and with
+    # documentation examples that future maintainers will look up.
     #
     # ``__name__`` evaluates to ``"app"`` here because this module is
     # ``app/__init__.py`` and the package is named ``app``. This is the
@@ -300,9 +301,29 @@ def create_app(config_object: str = _DEFAULT_CONFIG_OBJECT) -> Flask:
     # which is what the formatter in :mod:`app.logging_config` renders
     # in the ``%(name)s`` field.
     #
-    # Express analogue (per AAP §0.6.4): ``const app = express();``.
+    # CRITICAL (AAP rules R-1 and R-4 / §0.6.2 Catch-All Routing
+    # Strategy): ``static_folder=None`` disables Flask's default
+    # ``/static/<path:filename>`` route. Without this kwarg, Flask
+    # auto-registers a built-in ``static`` endpoint that is more
+    # specific than the ``main.hello_world`` catch-all and therefore
+    # **shadows** the parity handler for any URL beginning with
+    # ``/static/``. The retired Node ``http.createServer`` callback
+    # from ``server.js:L6-L10`` ignores ``req.url`` and returns
+    # ``Hello, World!\n`` for every path, so allowing Flask's static
+    # endpoint to intercept ``/static/<filename>`` would violate the
+    # byte-level response contract (R-1) and the path-agnostic dispatch
+    # rule (R-4). The :mod:`app.routes.main` blueprint at
+    # ``app/routes/main.py:L91`` already passes no static-folder argument
+    # for the same reason; this kwarg extends that discipline to the
+    # application-level Flask instance so that *no* implicit route
+    # competes with the catch-all.
+    #
+    # Express analogue (per AAP §0.6.4): ``const app = express();``
+    # (Express does not auto-mount a static directory; the Flask kwarg
+    # makes the Python factory match that no-static-by-default
+    # behaviour.)
     # ------------------------------------------------------------------
-    app: Flask = Flask(__name__)
+    app: Flask = Flask(__name__, static_folder=None)
 
     # ------------------------------------------------------------------
     # Step 2: Resolve the dotted-path config string and load the class.
