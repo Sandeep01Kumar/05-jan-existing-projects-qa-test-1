@@ -39,6 +39,7 @@ enumerates the valid setting names; only the names defined below are
 exported by this module.
 """
 
+import logging
 import multiprocessing
 import os
 
@@ -63,19 +64,94 @@ bind = f"{_host}:{_port}"
 # conservative choice appropriate for the simple Hello-World workload. An
 # env-driven override (``GUNICORN_WORKERS``) is honoured for tuning:
 #
-#   * ``GUNICORN_WORKERS=<integer>`` — explicit worker count
-#   * ``GUNICORN_WORKERS=auto``      — adaptive ``(2 * CPU) + 1`` heuristic
+#   * ``GUNICORN_WORKERS=<positive integer>`` — explicit worker count
+#   * ``GUNICORN_WORKERS=auto``               — adaptive ``(2 * CPU) + 1`` heuristic
 #
 # The "auto" branch invokes :func:`multiprocessing.cpu_count` which returns
 # the number of logical CPUs visible to the host; this is the canonical
 # gunicorn worker-count recommendation for sync workers on multi-core
 # production hosts.
+#
+# Robustness: invalid values (non-integers, zero, negative numbers) fall
+# back **safely** to the documented default of ``2`` rather than raising
+# ``ValueError`` and aborting gunicorn startup. The fallback is announced
+# via a warning so operators are informed but the process keeps running.
+# This satisfies the Checkpoint 1 deployment-robustness requirement:
+# "integer parsing of GUNICORN_WORKERS with safe fallback when value is
+# invalid."
 # ---------------------------------------------------------------------------
-_workers_env = os.environ.get("GUNICORN_WORKERS", "2")
-if _workers_env == "auto":
-    workers = (multiprocessing.cpu_count() * 2) + 1
-else:
-    workers = int(_workers_env)
+_DEFAULT_WORKERS = 2
+_workers_env = os.environ.get("GUNICORN_WORKERS", str(_DEFAULT_WORKERS))
+
+
+def _resolve_workers(raw_value: str, default: int = _DEFAULT_WORKERS) -> int:
+    """Resolve the ``GUNICORN_WORKERS`` env value to a positive integer.
+
+    Parameters
+    ----------
+    raw_value : str
+        The raw string read from ``os.environ['GUNICORN_WORKERS']`` (or
+        the default substituted by the caller if the env var is unset).
+    default : int, optional
+        The integer to fall back to when ``raw_value`` is invalid. The
+        default mirrors AAP §0.3.1's documented ``workers = 2``.
+
+    Returns
+    -------
+    int
+        ``(2 * cpu_count) + 1`` for the literal ``"auto"`` (case-insensitive,
+        surrounding whitespace tolerated); the parsed positive integer for
+        any other valid value; ``default`` for anything else.
+
+    Notes
+    -----
+    Invalid inputs trigger a single ``logging`` warning ("falling back
+    to default workers=N") so operators see the substitution in
+    gunicorn's error log without the process aborting. The function is
+    pure — it never raises — which is what allows gunicorn's
+    configuration import to complete even in the presence of operator
+    typos in ``.env`` or shell-export commands.
+    """
+    # Normalise: strip surrounding whitespace and lowercase so that
+    # "Auto", " auto ", and "AUTO" are all treated the same as "auto".
+    value = (raw_value or "").strip()
+
+    # The literal "auto" (any case) uses gunicorn's canonical
+    # (2 * cpu_count) + 1 heuristic for sync workers.
+    if value.lower() == "auto":
+        return (multiprocessing.cpu_count() * 2) + 1
+
+    # Anything else must parse as a positive integer. We use a guarded
+    # try/except + positivity check rather than ``int(value)`` directly
+    # so that ValueError, empty strings, floats like "2.5", and
+    # non-positive integers all funnel into the same fallback branch.
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        logging.warning(
+            "GUNICORN_WORKERS=%r is not an integer or 'auto'; "
+            "falling back to default workers=%d",
+            raw_value,
+            default,
+        )
+        return default
+
+    if parsed <= 0:
+        logging.warning(
+            "GUNICORN_WORKERS=%r must be a positive integer; "
+            "falling back to default workers=%d",
+            raw_value,
+            default,
+        )
+        return default
+
+    return parsed
+
+
+# Module-level assignment — gunicorn discovers settings by name in this
+# module's globals (see the file-level docstring), so ``workers`` must
+# be a plain int at import time.
+workers = _resolve_workers(_workers_env)
 
 # ---------------------------------------------------------------------------
 # Logging — analogue of PM2's out_file / error_file
