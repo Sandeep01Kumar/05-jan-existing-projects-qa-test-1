@@ -61,7 +61,11 @@ References
 * AAP §0.3.1 (Role Specification — ``tests/conftest.py`` provides "pytest
   fixtures (``app``, ``client``) using ``create_app('app.config.TestConfig')``").
 * AAP §0.4.1 (transformation row ``tests/conftest.py``).
-* AAP §0.5.2 (external dependency — ``pytest==8.4.2``).
+* AAP §0.5.2 (external dependency — ``pytest==9.0.3``; upgraded at
+  Checkpoint 7 final from the AAP-pinned 8.4.2 to remediate
+  CVE-2025-71176 / GHSA-6w46-j5rx-g56g, following the same
+  defense-in-depth precedent established for Werkzeug and python-dotenv
+  at Checkpoint 3 final review).
 * AAP §0.5.4 (Import Refactoring table — ``tests/**.py`` imports
   ``pytest`` and ``from app import create_app``).
 * AAP §0.6.1 (Behavioral-Parity Strategy — response attributes asserted by
@@ -80,7 +84,10 @@ References
 #
 #   * :mod:`pytest`            — provides the ``@pytest.fixture`` decorator
 #                                used to declare the fixtures below
-#                                (AAP §0.5.2 — ``pytest==8.4.2``).
+#                                (``pytest==9.0.3``; upgraded at Checkpoint
+#                                7 final from the AAP §0.5.2 baseline of
+#                                8.4.2 to remediate CVE-2025-71176 /
+#                                GHSA-6w46-j5rx-g56g).
 #   * :func:`app.create_app`   — the Flask application factory exposed by
 #                                ``app/__init__.py``'s ``__all__``
 #                                (AAP §0.5.4 internal import).

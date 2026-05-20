@@ -55,6 +55,28 @@ The `.env` file is **gitignored** — only `.env.example` is tracked in version 
 
 ## Run (Development)
 
+> ⚠️ **Development-only — do NOT use in production.** Both invocations below
+> start the **Werkzeug development server** (also known as the Flask dev
+> server). The Werkzeug dev server is intended for local development only;
+> it is **not** designed to be exposed to untrusted networks and:
+>
+> - Discloses the framework and runtime versions in the response `Server`
+>   header (for example, `Server: Werkzeug/3.1.8 Python/3.12.3`). This is a
+>   minor information-disclosure surface that helps an attacker fingerprint
+>   the stack. Production deployments use **gunicorn**, which emits only
+>   `Server: gunicorn` (name only, no version) — see [Run (Production)](#run-production)
+>   below.
+> - Is single-process / single-threaded by default (no worker pool, no
+>   pre-fork) and lacks production-grade signal handling, log rotation, and
+>   request-routing performance.
+> - Will warn (`WARNING: This is a development server. Do not use it in a
+>   production deployment.`) on startup — by design.
+>
+> For any deployment outside of local development on your own workstation,
+> use [`gunicorn`](#linuxmacos--gunicorn-primary) (Linux/macOS) or
+> [`waitress`](#windows--waitress-fallback) (Windows) as documented in the
+> next section.
+
 The development server is invoked in one of two equivalent ways. Both bind to `http://127.0.0.1:3000/` by default.
 
 ### Option A — run the WSGI entry directly
@@ -93,6 +115,14 @@ Two production WSGI servers are pinned in [`requirements.txt`](requirements.txt)
 
 - **`gunicorn`** — the primary pre-fork WSGI server for Linux/macOS.
 - **`waitress`** — the cross-platform fallback, used on Windows (where `gunicorn` is not supported).
+
+Production deployments **MUST** use one of these — not the Werkzeug
+development server documented in the [Run (Development)](#run-development)
+section. Beyond the obvious performance and supervision differences,
+gunicorn emits only `Server: gunicorn` in the response header (name
+only — no version), avoiding the framework + Python version disclosure
+that the Werkzeug dev server adds by default (`Server: Werkzeug/<ver>
+Python/<ver>`).
 
 ### Linux/macOS — gunicorn (primary)
 
