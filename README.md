@@ -1,2 +1,274 @@
 # hao-backprop-test
-test project for backprop integration. Do not touch!
+
+A Python 3 Flask "Hello, World!" HTTP server (migrated from the previous implementation) bound to `127.0.0.1:3000` by default. The service returns the body `Hello, World!\n` with `Content-Type: text/plain` and status `200` to **every** HTTP method on **every** URL path — preserving the exact behavior of the retired implementation.
+
+---
+
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Setup](#setup)
+3. [Run (Development)](#run-development)
+4. [Run (Production)](#run-production)
+5. [Test](#test)
+6. [Project Layout](#project-layout)
+7. [Environment Variables](#environment-variables)
+8. [Behavioral Parity](#behavioral-parity)
+
+---
+
+## Prerequisites
+
+- **Python 3.12 or higher** — the runtime is pinned in [`.python-version`](.python-version) for users of `pyenv` or `asdf`.
+- **`pip`** — used to install dependencies from [`requirements.txt`](requirements.txt).
+- **Virtual environment (recommended)** — use the built-in `python -m venv` to isolate project dependencies from the system interpreter.
+
+Verify your installation:
+
+```bash
+python --version    # should report Python 3.12.x or newer
+pip --version
+```
+
+---
+
+## Setup
+
+Run these commands once after cloning the repository:
+
+```bash
+# 1) Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate          # Linux/macOS
+# .venv\Scripts\activate           # Windows (PowerShell or cmd.exe)
+
+# 2) Install pinned dependencies
+pip install -r requirements.txt
+
+# 3) Copy the environment-variable template and edit values as needed
+cp .env.example .env
+```
+
+The `.env` file is **gitignored** — only `.env.example` is tracked in version control. See [Environment Variables](#environment-variables) for the full list of variables and their defaults.
+
+---
+
+## Run (Development)
+
+> ⚠️ **Development-only — do NOT use in production.** Both invocations below
+> start the **Werkzeug development server** (also known as the Flask dev
+> server). The Werkzeug dev server is intended for local development only;
+> it is **not** designed to be exposed to untrusted networks and:
+>
+> - Discloses the framework and runtime versions in the response `Server`
+>   header (for example, `Server: Werkzeug/3.1.8 Python/3.12.3`). This is a
+>   minor information-disclosure surface that helps an attacker fingerprint
+>   the stack. Production deployments use **gunicorn**, which emits only
+>   `Server: gunicorn` (name only, no version) — see [Run (Production)](#run-production)
+>   below.
+> - Is single-process / single-threaded by default (no worker pool, no
+>   pre-fork) and lacks production-grade signal handling, log rotation, and
+>   request-routing performance.
+> - Will warn (`WARNING: This is a development server. Do not use it in a
+>   production deployment.`) on startup — by design.
+>
+> For any deployment outside of local development on your own workstation,
+> use [`gunicorn`](#linuxmacos--gunicorn-primary) (Linux/macOS) or
+> [`waitress`](#windows--waitress-fallback) (Windows) as documented in the
+> next section.
+
+The development server is invoked in one of two equivalent ways. Both bind to `http://127.0.0.1:3000/` by default.
+
+### Option A — run the WSGI entry directly
+
+```bash
+python wsgi.py
+```
+
+`wsgi.py` instantiates the Flask application via the `create_app()` factory and, when executed as a script, calls `app.run(host=cfg.HOST, port=cfg.PORT)`.
+
+### Option B — use the Flask CLI
+
+```bash
+export FLASK_APP=wsgi:app
+flask run --host=127.0.0.1 --port=3000
+```
+
+Once the server is running, every HTTP method (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`) on every URL path returns:
+
+- **Status**: `200`
+- **Header**: `Content-Type: text/plain` (no `charset` suffix — exact parity with the retired implementation)
+- **Body**: `Hello, World!\n` (with the trailing newline character)
+
+Smoke-test the running server:
+
+```bash
+curl -i http://127.0.0.1:3000/
+curl -i -X POST http://127.0.0.1:3000/any/path
+```
+
+---
+
+## Run (Production)
+
+Two production WSGI servers are pinned in [`requirements.txt`](requirements.txt):
+
+- **`gunicorn`** — the primary pre-fork WSGI server for Linux/macOS.
+- **`waitress`** — the cross-platform fallback, used on Windows (where `gunicorn` is not supported).
+
+Production deployments **MUST** use one of these — not the Werkzeug
+development server documented in the [Run (Development)](#run-development)
+section. Beyond the obvious performance and supervision differences,
+gunicorn emits only `Server: gunicorn` in the response header (name
+only — no version), avoiding the framework + Python version disclosure
+that the Werkzeug dev server adds by default (`Server: Werkzeug/<ver>
+Python/<ver>`).
+
+### Linux/macOS — gunicorn (primary)
+
+```bash
+gunicorn -c gunicorn_config.py wsgi:app
+```
+
+Configuration lives in [`gunicorn_config.py`](gunicorn_config.py) (binds to `127.0.0.1:3000`, sets worker count, log levels, access/error logs, and process name).
+
+### Windows — waitress (fallback)
+
+```bash
+waitress-serve --listen=127.0.0.1:3000 wsgi:app
+```
+
+### PaaS / Procfile deployments
+
+For platforms that consume a [`Procfile`](Procfile) (Heroku, Dokku, Railway, Fly.io, etc.), the declared process is:
+
+```text
+web: gunicorn -c gunicorn_config.py wsgi:app
+```
+
+### Process supervision
+
+For production hosts, supervise the WSGI server with a dedicated process manager such as **systemd**, **supervisord**, or **Docker** (with a restart policy) rather than relying on the WSGI server itself. The `gunicorn --reload` flag exists for development convenience only and **must not** be used in production.
+
+---
+
+## Test
+
+The test suite under [`tests/`](tests/) verifies behavioral parity with the retired implementation using `pytest` and `pytest-flask`.
+
+```bash
+pytest                              # run all parity tests
+pytest -v                           # verbose output
+pytest tests/test_app.py            # run a single module
+pytest -k "test_body_bytes"         # filter by test name
+```
+
+The parity tests assert, for **every** HTTP method (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`) and a variety of URL paths (`/`, `/any/path`, `/x/y/z`, etc.):
+
+- Response status code is `200`.
+- Response header `Content-Type` is exactly `text/plain` (no `charset=utf-8` suffix).
+- Response body bytes are exactly `b"Hello, World!\n"` — including the trailing newline.
+
+---
+
+## Project Layout
+
+The tree below mirrors AAP §0.3.1. The Flask `app/` package, the `tests/`
+package, and `wsgi.py` are introduced by subsequent checkpoints; everything
+else exists at this milestone. The "Preserved Backprop fixtures" block lists
+files that are out-of-scope test artifacts (AAP §0.2.2) — they remain at the
+repository root, unchanged in name, content, and location.
+
+```text
+hao-backprop-test/
+├── app/                            # Python package — Flask application
+│   ├── __init__.py                 # create_app() application factory
+│   ├── config.py                   # Config classes (Base/Dev/Prod/Test)
+│   ├── logging_config.py           # configure_logging(app) helper
+│   ├── routes/
+│   │   ├── __init__.py             # exports main_bp
+│   │   └── main.py                 # main_bp blueprint; catch-all hello view
+│   └── middleware/
+│       ├── __init__.py             # exports register_hooks
+│       └── hooks.py                # before_request / after_request / errorhandler
+├── tests/
+│   ├── __init__.py                 # tests package marker
+│   ├── conftest.py                 # pytest fixtures (app, client)
+│   └── test_app.py                 # behavioral parity tests
+├── wsgi.py                         # `app = create_app()` for WSGI servers
+├── requirements.txt                # pinned Python dependencies
+├── pyproject.toml                  # PEP 621 project metadata
+├── gunicorn_config.py              # production WSGI server configuration
+├── Procfile                        # `web: gunicorn -c gunicorn_config.py wsgi:app`
+├── .env.example                    # documented environment variables (committed)
+├── .env                            # local environment values (gitignored — see Setup)
+├── .python-version                 # 3.12
+├── .gitignore                      # Python-aware ignores
+├── README.md                       # this file
+│
+│ ── Preserved Backprop fixtures (out-of-scope, AAP §0.2.2) ──────────────────
+├── LoginTest.java
+├── LoginTest - Copy.java
+├── industry.csv
+├── industry - Copy.csv
+├── 100Pages.pdf
+├── 100Pages - Copy.pdf
+├── demo.jpg
+├── demo - Copy.jpg
+├── sample.doc
+├── sample - Copy.doc
+├── test.py.txt
+├── test.py - Copy.txt
+└── test.txt.txt
+```
+
+### Module responsibilities
+
+| Path | Responsibility |
+|------|----------------|
+| `app/__init__.py` | Application factory `create_app(config_object)` — instantiates `Flask(__name__)`, loads config, configures logging, registers middleware hooks, and registers `main_bp`. |
+| `app/config.py` | Config classes (`BaseConfig`, `DevConfig`, `ProdConfig`, `TestConfig`) with values loaded from `os.environ` via `python-dotenv`. |
+| `app/logging_config.py` | `configure_logging(app)` — attaches a stream handler and formatter to `app.logger` at the configured level. |
+| `app/routes/main.py` | `main_bp` blueprint with the catch-all hello-world view (routes `/` and `/<path:subpath>`). |
+| `app/middleware/hooks.py` | `register_hooks(app)` — registers `before_request`, `after_request`, and `errorhandler` callbacks. |
+| `wsgi.py` | WSGI entry point — exposes `app = create_app(...)` for `gunicorn`/`waitress` and runs the dev server under `if __name__ == "__main__":`. |
+| `tests/` | `pytest` suite verifying behavioral parity. |
+
+---
+
+## Environment Variables
+
+All variables are documented in [`.env.example`](.env.example) and loaded into `os.environ` at startup by `python-dotenv`. Copy `.env.example` to `.env` and edit values as needed.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `FLASK_ENV` | `development` | Flask environment indicator — one of `development`, `production`, or `testing`. |
+| `FLASK_CONFIG` | `app.config.DevConfig` | Dotted import path of the config class loaded by `create_app()`. Alternatives: `app.config.ProdConfig`, `app.config.TestConfig`. |
+| `HOST` | `127.0.0.1` | Bind host for the WSGI server. The default preserves byte-level parity with the retired implementation. |
+| `PORT` | `3000` | Bind port for the WSGI server. The default preserves byte-level parity with the retired implementation. |
+| `LOG_LEVEL` | `INFO` | Python `logging` level — one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+| `SECRET_KEY` | `change-me` | Flask secret key used for session signing. Not consumed by the current Hello-World route, but recommended for any future feature that uses `flask.session` or `flask.flash`. |
+| `GUNICORN_WORKERS` | `2` | Number of gunicorn worker processes (consumed by `gunicorn_config.py`). Accepts a positive integer or the literal `auto` (which evaluates to `(2 * CPU) + 1`). Invalid or non-positive values fall back safely to `2` with a warning. |
+
+> **Note**: `.env` is gitignored. Never commit production secrets to the repository.
+
+> **Production secret-key requirement**: Before deploying to any production
+> environment, **set `SECRET_KEY` to a strong, unique, non-placeholder value**
+> (for example, a 32-byte value generated by `python -c "import secrets;
+> print(secrets.token_urlsafe(32))"`). **Never** deploy with the placeholder
+> `change-me`, with the development value `dev-only-change-me-in-production`,
+> or with any other guessable default. Session-signing security and any
+> future feature that calls `flask.session` or `flask.flash` depend on the
+> secrecy of this key.
+
+---
+
+## Behavioral Parity
+
+This Python service is a **behavior-preserving rewrite** of the previous implementation. Every HTTP request — regardless of method or URL path — receives an HTTP response that is byte-equivalent to the response the retired server would have returned:
+
+- **Status code**: `200`
+- **Response header**: `Content-Type: text/plain` (exact string — no `charset` suffix)
+- **Response body**: `Hello, World!\n` (14 bytes; trailing newline included)
+
+The `tests/` package asserts these properties exhaustively across the full HTTP method matrix and across a variety of URL paths (including nested paths such as `/a/b/c/d`). Run `pytest` to verify parity at any time.

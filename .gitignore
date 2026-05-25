@@ -1,0 +1,33 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment values (rule R-2 / AAP §0.7.3 — never commit .env)
+.env
+.env.local
+
+# Test/build caches
+.pytest_cache/
+.cache/
+.coverage
+htmlcov/
+.tox/
+*.egg-info/
+build/
+dist/
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
