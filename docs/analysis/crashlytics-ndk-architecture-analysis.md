@@ -26,7 +26,7 @@ The repository under analysis is identified by the authoritative artifacts in th
 | Sole runnable source | `[server.js]` — 14-line Node.js HTTP server using only the built-in `http` module `[server.js:L1]`, binding `127.0.0.1:3000` `[server.js:L3-L4]`, returning `Hello, World!\n` `[server.js:L9]` | `[server.js]` |
 | Primary language | JavaScript (Node.js) | `[server.js]`, `[Tech Spec §3.1]` |
 | Secondary language (non-functional stubs) | Java | `[LoginTest.java]`, `[Tech Spec §3.1]` |
-| Total files at repository root | 18, no subdirectories | repository inventory |
+| Pre-existing root fixture files | 18 preserved root files (enumerated in the paragraph immediately following this table); the only subdirectory under version control in the final tracked tree is `docs/`, which contains exclusively the three new analysis deliverables introduced by this report and does not modify the pre-existing root fixture | `[Tech Spec §2.1]` (F-002 Test Fixture File Structure), `[README.md:L1-L2]` (preservation directive), enumeration in §2 paragraph below |
 | External dependencies | 0 declared, 0 installed | `[package.json]`, `[package-lock.json]`, `[Tech Spec §3.3]` |
 | System overview (Tech Spec) | Node.js HTTP fixture, localhost-only, zero dependencies | `[Tech Spec §1.1]`, `[Tech Spec §1.2]` |
 
@@ -72,12 +72,16 @@ grep -rIi -E --exclude-dir=.git --exclude-dir=blitzy --exclude-dir=docs \
 
 **Result: exit code 1 — zero matches in any project source-text file.**
 
-The only matches anywhere in the unfiltered tree were excluded by design and are non-substantive:
+When the same regex is widened to the full working tree without the `--exclude-dir=.git --exclude-dir=blitzy --exclude-dir=docs` filters, additional matches do appear, but every additional match is outside the project-source scope established above and is not authored by this repository's pre-analysis fixture. Known incidental non-project matches that have been observed in this environment include:
 
-1. `.git/hooks/fsmonitor-watchman.sample` — a Git-supplied sample template (not a project file) containing the unrelated Perl identifier `$retry` inside a filesystem-monitoring snippet. This file is shipped by Git itself and exists in every `git init`'d repository on this version of Git; it is not authored by this repository and carries no Crashlytics significance.
-2. Coincidental byte-pattern matches inside `[100Pages.pdf]` and `[100Pages - Copy.pdf]` if `-I` is omitted. PDF is a binary container format; without the text-only filter `grep` would report any matching byte sequence inside the binary stream. These are not source-code Crashlytics references; the `-I` flag in the search above correctly skips them.
+1. **Inside `.git/` (Git's own internal directory, not authored by this project):**
+   - `.git/hooks/fsmonitor-watchman.sample` — a Git-supplied sample template (not a project file) containing the unrelated Perl identifier `$retry` inside a filesystem-monitoring snippet. This file is shipped by Git itself and exists in every `git init`'d repository on this version of Git; it is not authored by this repository and carries no Crashlytics significance.
+   - `.git/COMMIT_EDITMSG`, `.git/logs/HEAD`, and `.git/logs/refs/heads/<branch>` — Git-internal commit-message and reflog records. These contain the matched terms only because the commits that introduced **this analysis itself** mention the regex terms (e.g., the commit subject "Add Crashlytics NDK architecture analysis report"). They are reflections of this analysis's own commit history written by Git, not Crashlytics references authored in the repository.
+   - Additional `.git/` binary objects (e.g., `.git/index`, packed objects under `.git/objects/pack/`) are skipped by the text-only `-I` flag and contain no Crashlytics source code; if `-I` is omitted, any byte-pattern hit inside such a binary object is a coincidental sequence, not a source-code Crashlytics reference.
+2. **Inside `docs/` (this analysis directory):** the three deliverables under `docs/analysis/` necessarily mention every term in the regex because they **are** this analysis. Including them in a search would create a self-citation cycle and would not test the pre-analysis state of the repository, which is exactly why `--exclude-dir=docs` is part of the canonical search above.
+3. **Inside binary fixture files (only if `-I` is omitted):** coincidental byte-pattern matches inside `[100Pages.pdf]` and `[100Pages - Copy.pdf]` can be reported when the text-only filter is dropped. PDF is a binary container format; without the text-only filter `grep` would report any matching byte sequence inside the binary stream. These are not source-code Crashlytics references; the `-I` flag in the canonical search above correctly skips them.
 
-Neither of these accidental hits is a Crashlytics-domain source-code occurrence. The empirical conclusion is that the repository's project source contains zero references to any term in the regex.
+None of the incidental matches enumerated above is a Crashlytics-domain source-code occurrence authored in this repository. The empirical conclusion stands in scoped form: when the search is constrained to project source-text files and the `.git/`, `blitzy/`, and `docs/` directories are excluded — i.e., when the canonical invocation in §3.1 is used — the repository contains zero references to any term in the regex.
 
 ### 3.2 Native and Android File-Glob Search
 
@@ -227,7 +231,7 @@ The absence documented above is **complete and structural**. Not a single one of
 
 ## 6. Controlling Constraints
 
-Even if the introduction of Crashlytics NDK components into this repository were considered desirable, six controlling constraints from the Technical Specification and the repository's own preservation directive would individually prohibit such an introduction. Each constraint is listed below with its locator and the specific introduction it forecloses.
+Even if the introduction of Crashlytics NDK components into this repository were considered desirable, the following controlling constraints and exclusions from the Technical Specification and the repository's own preservation directive would individually prohibit such an introduction. Each item is listed below with its locator and the specific introduction it forecloses.
 
 - `[README.md:L1-L2]` "test project for backprop integration. Do not touch!" — The repository's root README directly prohibits modifying any existing file. This directive predates and is reinforced by `[Tech Spec §5.5.2: C-001]` and forecloses **all 18 root-file modifications** that a Crashlytics integration would require (e.g., adding a `firebase-crashlytics-ndk` Maven coordinate to a Gradle file, adding `apply plugin: 'com.google.firebase.crashlytics'` to an Android module, adding `System.loadLibrary("crashlytics")` to an Application subclass).
 - `[Tech Spec §5.5.2: C-001]` "Repository must remain unchanged" — Formalizes the README directive as a binding controlling constraint. Verifiable compliance is `git diff --name-status` against the pre-implementation baseline showing only `A` (added) entries under `docs/analysis/`.
