@@ -57,7 +57,7 @@ No test runner — neither jest, mocha, vitest, ava, tap, jasmine, chai, sinon, 
 
 ### 3.2 Files Named Like Tests but Empty
 
-A `find . -iname '*test*'` over the repository root surfaces five files whose name contains `test`. Three of them are 0-byte plain-text placeholders:
+A root-scoped `find . -maxdepth 1 -iname '*test*'` over the original root fixture surfaces five files whose name contains `test` (the equivalent prune-based recursive variant — `find . -path ./.git -prune -o -path ./docs -prune -o -path ./blitzy -prune -o -iname '*test*' -print` — returns the same five files; the unqualified recursive form `find . -iname '*test*'` would also match this analysis report itself under `docs/analysis/` and is therefore not the appropriate scope for inventorying the repository's pre-analysis test-named artifacts). Three of the five root-scoped matches are 0-byte plain-text placeholders:
 
 - `[test.txt.txt]` — **0 bytes**, plain text, empty (verified via `wc -c`). The extension is `.txt`, not `.test` or `.spec` — it does not match any conventional JavaScript or Python test-runner discovery pattern.
 - `[test.py.txt]` — **0 bytes**, plain text, empty (verified via `wc -c`). Note that the effective filesystem extension is `.txt`, not `.py`; the file is not Python source, would not be discovered by `pytest`/`unittest`, and would not be interpreted by `python3` even if invoked directly.
